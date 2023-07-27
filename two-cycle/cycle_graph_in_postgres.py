@@ -11,19 +11,26 @@ class PostgresGraph(CycleGraph):
     1. Each graph is a postgres table. The table name is the graph name.
     2. The table has 3 columns: v, l, r. vertex, neighbor on the left, neighbor on the right.
     """
+
     def __init__(self, pg_config, name):
         self._name = name
         self.conn = None
         self.pg_config = pg_config
 
     def open_pg(self):
+        if self.conn is not None:
+            return
         self.conn = psycopg2.connect(**self.pg_config)
         self.conn.autocommit = True
 
     def close_pg(self):
-        self.conn.close()
+        if self.conn is not None:
+            self.conn.close()
+        self.conn = None
 
     def set_neighbors(self, v, left_neighbor, right_neighbor) -> None:
+        if self.conn is None:
+            self.open_pg()
         cur = self.conn.cursor()
         sql = """
         INSERT INTO {table} (v, l, r)
@@ -36,6 +43,8 @@ class PostgresGraph(CycleGraph):
         cur.close()
 
     def left(self, v) -> int:
+        if self.conn is None:
+            self.open_pg()
         cur = self.conn.cursor()
         sql = "select l from {table} where v = {v}".format(table=self._name, v=v)
         cur.execute(sql)
@@ -44,6 +53,8 @@ class PostgresGraph(CycleGraph):
         return l
 
     def right(self, v) -> int:
+        if self.conn is None:
+            self.open_pg()
         cur = self.conn.cursor()
         sql = "select r from {table} where v = {v}".format(table=self._name, v=v)
         cur.execute(sql)
@@ -52,6 +63,8 @@ class PostgresGraph(CycleGraph):
         return r
 
     def vertex_cnt(self) -> int:
+        if self.conn is None:
+            self.open_pg()
         cur = self.conn.cursor()
         sql = "select count(*) from {table}".format(table=self._name)
         cur.execute(sql)
@@ -60,6 +73,8 @@ class PostgresGraph(CycleGraph):
         return r
 
     def sample_vertices(self, n) -> List[int]:
+        if self.conn is None:
+            self.open_pg()
         cur = self.conn.cursor()
         sql = "select v from {table} order by random() limit {n}".format(table=self._name, n=n)
         cur.execute(sql)
@@ -69,6 +84,8 @@ class PostgresGraph(CycleGraph):
         return vertices
 
     def set_vertices(self, vertices) -> None:
+        if self.conn is None:
+            self.open_pg()
         cur = self.conn.cursor()
         sql = "truncate table {table}".format(table=self._name)
         cur.execute(sql)
@@ -140,5 +157,3 @@ def add_cycle_to_pg_cycle_graph(g: PostgresGraph, vertices: List[int]) -> None:
         l = n - 1 if i == 0 else i - 1
         r = 0 if i == n - 1 else i + 1
         g.set_neighbors(vertices[i], vertices[l], vertices[r])
-
-
